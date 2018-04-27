@@ -10,6 +10,8 @@ namespace HadrBenchMark
     public class HadrTestBase
     {
         const int randomSeed = 9999;
+
+        private string dbshare;
         // connect to Primary
         private Smo.Server primary;
         // use only one secondary right now, refactor to list if need more replica
@@ -30,17 +32,21 @@ namespace HadrBenchMark
 
         public List<string> primaryDbsNames;
         public List<Smo.Database> primaryDbs;
+        public List<Smo.Database> secondaryDBs;
+
 
         public void Setup()
         {
             agName = "HadrBenchTest";
-            //primaryServerName = @"zecheBenchTest01\hadrBenchMark01";
-            //secondaryServerName = @"ze-bench-02\hadrBenchMark01";
-            primaryServerName = @"ze-2016-v1\sql16rtm01";
-            secondaryServerName = @"ze-2016-v2\sql16rtm01";
+            primaryServerName = @"ze-bench-01\hadrBenchMark01";
+            secondaryServerName = @"ze-bench-02\hadrBenchMark01";
+            dbshare = @"\\zechen-d1\dbshare\bench\";
+            //primaryServerName = @"ze-2016-v1\sql16rtm01";
+            //secondaryServerName = @"ze-2016-v2\sql16rtm01";
             // start point of dbCount, lets say 500
             primaryDbsNames = new List<string>();
-            dbCount = 500;
+            primaryDbs = new List<Database>();
+            dbCount = 250;
             for(int i = 1; i < dbCount; i++)
             {
                 primaryDbsNames.Add(string.Format("DB_{0}", i));
@@ -55,11 +61,17 @@ namespace HadrBenchMark
 
             Console.WriteLine("Create hadrEnpoint Url: {0}", primaryEndpointUrl);
             Console.WriteLine("Create hadrEnpoint Url: {0}", secondaryEndpointUrl);
+            TestNodesHADREnabled();
+            TestCreateAGWithTwoReplicasWithoutDatabase();
+
+            CreateBaselineDatabase();
+            AddDatabasesIntoAG(primaryDbsNames);
         }
 
         public void CleanUp()
         {
             AGHelper.DropAG(agName, primary);
+            CleanupDatabases();
         }
 
         public void TestNodesHADREnabled()
@@ -107,6 +119,75 @@ namespace HadrBenchMark
             }
         }
 
+        public void AddDatabasesIntoAG(List<string> listDbNames)
+        {
+            AvailabilityGroup ag = primary.AvailabilityGroups[agName];
+            if (ag == null)
+            {
+                return;
+            }
+            foreach(string dbname in listDbNames)
+            {
+                AvailabilityDatabase adb = new AvailabilityDatabase(ag, dbname);
+                adb.Create();
+                Thread.Sleep(1000);
+                // wait a bit to let adb join ag
+            }
+        }
+
+        public void CreateBaselineDatabase()
+        {
+
+                foreach (string dbName in primaryDbsNames)
+                {
+                    if (!primary.Databases.Contains(dbName))
+                    {
+                        Database db = new Database(primary, dbName);
+                        db.Create();
+                        primaryDbs.Add(db);
+
+                        AGDBHelper.BackupDatabase(dbshare, primary, dbName);
+                    }
+                }
+        }
+
+        public void CleanupDatabases()
+        {
+            Console.WriteLine("Cleanning up databases");
+            if (primaryDbs != null)
+            {
+                foreach(Database db in primaryDbs)
+                {
+                    if (db.State != SqlSmoState.Dropped)
+                    {
+                        // assume all databases should dropped from ag
+                        db.Drop();
+                    }
+                }
+                primaryDbs.Clear();
+            }
+            secondaryDBs = new List<Database>();
+            foreach(Database db in secondary.Databases)
+            {
+                if (primaryDbsNames.Contains(db.Name))
+                {
+                    secondaryDBs.Add(db);
+                }
+            }
+            if (secondaryDBs != null)
+            {
+                foreach (Database db in secondaryDBs)
+                {
+                    if (db.State != SqlSmoState.Dropped)
+                    {
+                        // assume all databases should dropped from ag
+                        db.Drop();
+                    }
+                }
+                secondaryDBs.Clear();
+            }
+
+        }
 
     }
 }
