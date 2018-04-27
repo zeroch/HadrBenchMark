@@ -156,12 +156,12 @@ namespace HadrBenchMark
 
             foreach (Database db in databases)
             {
-                AvailabilityDBHelper.BackUpAndRestoreDatabase(fileShare, primaryReplica, secondaryReplica, db.Name);
+                AGDBHelper.BackUpAndRestoreDatabase(fileShare, primaryReplica, secondaryReplica, db.Name);
             }
 
             foreach (Database db in databases)
             {
-                AvailabilityDBHelper.JoinAG(db.Name, agName, secondaryReplica);
+                AGDBHelper.JoinAG(db.Name, agName, secondaryReplica);
             }
         }
 
@@ -183,7 +183,7 @@ namespace HadrBenchMark
         {
             foreach (Database db in databases)
             {
-                AvailabilityDBHelper.BackupDatabase(fileShare, primaryReplica, db.Name);
+                AGDBHelper.BackupDatabase(fileShare, primaryReplica, db.Name);
             }
 
             foreach (Smo.Server secondaryReplica in secondaries)
@@ -192,12 +192,12 @@ namespace HadrBenchMark
 
                 foreach (Database db in databases)
                 {
-                    AvailabilityDBHelper.RestoreDatabase(fileShare, secondaryReplica, db.Name);
+                    AGDBHelper.RestoreDatabase(fileShare, secondaryReplica, db.Name);
                 }
 
                 foreach (Database db in databases)
                 {
-                    AvailabilityDBHelper.JoinAG(db.Name, agName, secondaryReplica);
+                    AGDBHelper.JoinAG(db.Name, agName, secondaryReplica);
                 }
             }
         }

@@ -13,7 +13,7 @@ namespace HadrBenchMark
 
 
 
-        public class AvailabilityDBHelper
+        public class AGDBHelper
         {
             private static string backupFileNameTemplate = "{0}_{1}.bak";
 
@@ -46,12 +46,12 @@ namespace HadrBenchMark
 
             public static void SetDbOnline(string agName, string dbName, SMO.Server server)
             {
-                AvailabilityDBHelper.SetDbState(agName, dbName, false, server);
+                AGDBHelper.SetDbState(agName, dbName, false, server);
             }
 
             public static void SetDbSuspended(string agName, string dbName, SMO.Server server)
             {
-                AvailabilityDBHelper.SetDbState(agName, dbName, true, server);
+                AGDBHelper.SetDbState(agName, dbName, true, server);
             }
             private static bool IsDbSuspendedStateReached(Object[] input)
             {
@@ -85,8 +85,8 @@ namespace HadrBenchMark
 
             public static void BackUpAndRestoreDatabase(string fileShare, SMO.Server sourceServer, SMO.Server targetServer, string dbName)
             {
-                AvailabilityDBHelper.BackupDatabase(fileShare, sourceServer, dbName);
-                AvailabilityDBHelper.RestoreDatabase(fileShare, targetServer, dbName);
+                AGDBHelper.BackupDatabase(fileShare, sourceServer, dbName);
+                AGDBHelper.RestoreDatabase(fileShare, targetServer, dbName);
             }
 
 
@@ -236,11 +236,11 @@ namespace HadrBenchMark
             {
                 bool currState;
 
-                currState = AvailabilityDBHelper.GetDbJoinedState(agName, dbName, server);
+                currState = AGDBHelper.GetDbJoinedState(agName, dbName, server);
 
-                currState = AvailabilityDBHelper.GetDbSuspendedState(agName, dbName, server);
+                currState = AGDBHelper.GetDbSuspendedState(agName, dbName, server);
 
-                AvailabilityDatabase db = AvailabilityDBHelper.GetDb(agName, dbName, server);
+                AvailabilityDatabase db = AGDBHelper.GetDb(agName, dbName, server);
                 db.Refresh();
                 AvailabilityDatabaseSynchronizationState currSyncState = db.SynchronizationState;
             }
