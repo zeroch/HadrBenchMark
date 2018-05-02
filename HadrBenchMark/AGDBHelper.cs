@@ -145,6 +145,58 @@ namespace HadrBenchMark
             }
 
 
+
+            /// <summary>
+            /// Restore Database and Log on target server from backup files.
+            /// </summary>
+            /// <param name="fileShare">Location of backup files</param>
+            /// <param name="targetServer">Destination server</param>
+            /// <param name="dbName">Name of the database to be restored</param>
+            /// <param name="noRecovery">Gets or sets a Restore.NoRecovery property value that determines whether the tail of the log is backed up and whether the database is restored into the 'Restoring' state</param>
+
+            public static void RestoreDatabaseWithRename(string fileShare, SMO.Server targetServer, string dbName, string newDbName)
+            {
+                string backupFilePath;
+                string dataDirectory = targetServer.InstallDataDirectory;
+
+                BackupActionType backupType = BackupActionType.Database;
+                    backupFilePath = Path.Combine(fileShare, string.Format(backupFileNameTemplate, dbName, backupType.ToString()));
+
+                    BackupDeviceItem backupDeviceItem = new BackupDeviceItem(backupFilePath, DeviceType.File);
+
+                    //restore on the destination
+                    Restore restore = new Restore();
+                    restore.Action =  RestoreActionType.Database;
+                    restore.NoRecovery = false;
+               
+                    restore.Devices.Add(backupDeviceItem);
+                    restore.Database = dbName;
+                    restore.ReplaceDatabase = false;
+                    DataTable logicalFilesDt = restore.ReadFileList(targetServer);
+                    DataRow[] foundLogicalFilesRows = logicalFilesDt.Select();
+                    if (!string.IsNullOrEmpty(dataDirectory))
+                    {
+                        foreach (DataRow row in foundLogicalFilesRows)
+                        {
+                            string logicalFileName = row["LogicalName"].ToString();
+                            string physicalFileName = (logicalFileName.EndsWith("_log", StringComparison.OrdinalIgnoreCase)) ?
+                                Path.Combine(dataDirectory, string.Format(CultureInfo.InvariantCulture, "{0}.ldf", newDbName)) :
+                                Path.Combine(dataDirectory, string.Format(CultureInfo.InvariantCulture, "{0}.mdf", newDbName));
+                            restore.RelocateFiles.Add(new RelocateFile(logicalFileName, physicalFileName));
+                        }
+                    }
+
+
+                    restore.SqlRestore(targetServer);
+
+                Database db = targetServer.Databases[dbName];
+                db.Rename(newDbName);
+                db.RecoveryModel = RecoveryModel.Full;
+                db.Alter();
+
+            
+            }
+
             /// <summary>
             /// Restore Database and Log on target server from backup files.
             /// </summary>

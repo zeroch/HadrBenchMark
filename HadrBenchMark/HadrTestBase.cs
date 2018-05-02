@@ -12,6 +12,7 @@ namespace HadrBenchMark
         const int randomSeed = 9999;
 
         private string dbshare;
+        private string baseDBpath;
         // connect to Primary
         private Smo.Server primary;
         // use only one secondary right now, refactor to list if need more replica
@@ -28,7 +29,7 @@ namespace HadrBenchMark
 
 
         private int dbCount;
-        private int increaseDBCount = 200;
+        private int increaseDBCount = 10;
 
         public List<string> primaryDbsNames;
         public List<Smo.Database> primaryDbs;
@@ -40,18 +41,16 @@ namespace HadrBenchMark
             agName = "HadrBenchTest";
             primaryServerName = @"ze-bench-01\hadrBenchMark01";
             secondaryServerName = @"ze-bench-02\hadrBenchMark01";
+
+            baseDBpath = @"\\zechen-d1\dbshare\";
             dbshare = @"\\zechen-d1\dbshare\bench\";
             //primaryServerName = @"ze-2016-v1\sql16rtm01";
             //secondaryServerName = @"ze-2016-v2\sql16rtm01";
             // start point of dbCount, lets say 500
             primaryDbsNames = new List<string>();
             primaryDbs = new List<Database>();
-            dbCount = 250;
-            for(int i = 1; i < dbCount; i++)
-            {
-                primaryDbsNames.Add(string.Format("DB_{0}", i));
-            }
 
+            dbCount = 0;
             // get connection to primary and secondary server
             primary = new Smo.Server(primaryServerName);
             secondary = new Smo.Server(secondaryServerName);
@@ -64,8 +63,8 @@ namespace HadrBenchMark
             TestNodesHADREnabled();
             TestCreateAGWithTwoReplicasWithoutDatabase();
 
-            CreateBaselineDatabase();
-            AddDatabasesIntoAG(primaryDbsNames);
+            //CreateBaselineDatabase();
+
         }
 
         public void CleanUp()
@@ -137,8 +136,12 @@ namespace HadrBenchMark
 
         public void CreateBaselineDatabase()
         {
-
-                foreach (string dbName in primaryDbsNames)
+            dbCount = 10;
+            for (int i = 1; i <= dbCount; i++)
+            {
+                primaryDbsNames.Add(string.Format("DB_{0}", i));
+            }
+            foreach (string dbName in primaryDbsNames)
                 {
                     if (!primary.Databases.Contains(dbName))
                     {
@@ -149,42 +152,110 @@ namespace HadrBenchMark
                         AGDBHelper.BackupDatabase(dbshare, primary, dbName);
                     }
                 }
+            AddDatabasesIntoAG(primaryDbsNames);
+        }
+
+        public void CreateDatabaseFromBackup(List<string> newDBNames)
+        {
+            foreach (string dbName in newDBNames)
+            {
+                if (!primary.Databases.Contains(dbName))
+                {
+                    AGDBHelper.RestoreDatabaseWithRename(baseDBpath, primary, "AdventureWorks2017", dbName);
+                    if (primary.Databases.Contains(dbName))
+                    {
+                        Database db = primary.Databases[dbName];
+                        primaryDbs.Add(db);
+                        AGDBHelper.BackupDatabase(dbshare, primary, dbName);
+                    }
+                }
+            }
+        }
+
+        // add x databases into primary replica
+        // keep database name in primaryDbNames in record
+
+        public void AddDatabases(int num)
+        {
+            int index = dbCount + 1;
+            dbCount += num;
+            List<string> additionDBNames = new List<string>();
+            for (; index <= dbCount; index++)
+            {
+                string dbName = string.Format("DB_{0}", index);
+                additionDBNames.Add(dbName);
+            }
+
+            CreateDatabaseFromBackup(additionDBNames);
+            AddDatabasesIntoAG(additionDBNames);
+            Console.WriteLine("Add {0} Database into AG", num);
+
+        }
+
+        public void CreateDatabases(List<string> newDBNames)
+        {
+            foreach(string dbName in newDBNames)
+            {
+                if (!primary.Databases.Contains(dbName))
+                {
+                    Database db = new Database(primary, dbName);
+                    db.Create();
+                    primaryDbsNames.Add(dbName);
+                    primaryDbs.Add(db);
+                    AGDBHelper.BackupDatabase(dbshare, primary, dbName);
+                }
+            }
         }
 
         public void CleanupDatabases()
         {
-            Console.WriteLine("Cleanning up databases");
-            if (primaryDbs != null)
+            try
             {
-                foreach(Database db in primaryDbs)
+
+                Console.WriteLine("Cleanning up databases");
+                // instead of cleanup database only in the primary list, but we want to clean up every databases at nodes. 
+                List<Database> primarydbList = new List<Database>();
+
+                foreach (Database db in primary.Databases)
                 {
-                    if (db.State != SqlSmoState.Dropped)
+                    if (!db.IsSystemObject)
+                        primarydbList.Add(db);
+
+                }
+                if (primaryDbs != null)
+                {
+                    foreach (Database db in primarydbList)
                     {
-                        // assume all databases should dropped from ag
-                        db.Drop();
+                        if (db.State != SqlSmoState.Dropped)
+                        {
+                            // assume all databases should dropped from ag
+                            db.Drop();
+                        }
                     }
+                    primaryDbs.Clear();
                 }
-                primaryDbs.Clear();
-            }
-            secondaryDBs = new List<Database>();
-            foreach(Database db in secondary.Databases)
-            {
-                if (primaryDbsNames.Contains(db.Name))
+                secondaryDBs = new List<Database>();
+                foreach (Database db in secondary.Databases)
                 {
-                    secondaryDBs.Add(db);
+                    if (!db.IsSystemObject)
+                        secondaryDBs.Add(db);
+
                 }
-            }
-            if (secondaryDBs != null)
-            {
-                foreach (Database db in secondaryDBs)
+                if (secondaryDBs != null)
                 {
-                    if (db.State != SqlSmoState.Dropped)
+                    foreach (Database db in secondaryDBs)
                     {
-                        // assume all databases should dropped from ag
-                        db.Drop();
+                        if (db.State != SqlSmoState.Dropped)
+                        {
+                            // assume all databases should dropped from ag
+                            db.Drop();
+                        }
                     }
+                    secondaryDBs.Clear();
                 }
-                secondaryDBs.Clear();
+            }catch(FailedOperationException e)
+            {
+                Console.WriteLine(e.InnerException);
             }
 
         }
