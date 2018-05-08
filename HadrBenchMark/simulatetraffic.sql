@@ -1,82 +1,85 @@
 
---CREATE PROCEDURE USP_GENERATEIDENTIFIER
---    @MINLEN INT = 1
---    , @MAXLEN INT = 128
---    , @SEED INT OUTPUT
---    , @STRING VARCHAR(8000) OUTPUT
---AS
---BEGIN
---    SET NOCOUNT ON;
---    DECLARE @LENGTH INT;
---    DECLARE @ALPHA VARCHAR(8000)
---        , @DIGIT VARCHAR(8000)
---        , @SPECIALS VARCHAR(8000)
---        , @FIRST VARCHAR(8000)
---    DECLARE @STEP BIGINT = RAND(@SEED) * 2147483647;
 
---    SELECT @ALPHA = 'QWERTYUIOPASDFGHJKLZXCVBNM'
---        , @DIGIT = '1234567890'
---        , @SPECIALS = '_@# '
---    SELECT @FIRST = @ALPHA + '_@';
 
---    SET  @SEED = (RAND((@SEED+@STEP)%2147483647)*2147483647);
 
---    SELECT @LENGTH = @MINLEN + RAND(@SEED) * (@MAXLEN-@MINLEN)
---        , @SEED = (RAND((@SEED+@STEP)%2147483647)*2147483647);
+--create procedure usp_generateIdentifier
+--    @minLen int = 1
+--    , @maxLen int = 128
+--    , @seed int output
+--    , @string varchar(8000) output
+--as
+--begin
+--    set nocount on;
+--    declare @length int;
+--    declare @alpha varchar(8000)
+--        , @digit varchar(8000)
+--        , @specials varchar(8000)
+--        , @first varchar(8000)
+--    declare @step bigint = rand(@seed) * 2147483647;
 
---    DECLARE @DICE INT;
---    SELECT @DICE = RAND(@SEED) * LEN(@FIRST),
---        @SEED = (RAND((@SEED+@STEP)%2147483647)*2147483647);
---    SELECT @STRING = SUBSTRING(@FIRST, @DICE, 1);
+--    select @alpha = 'qwertyuiopasdfghjklzxcvbnm'
+--        , @digit = '1234567890'
+--        , @specials = '_@# '
+--    select @first = @alpha + '_@';
 
---    WHILE 0 < @LENGTH 
---    BEGIN
---        SELECT @DICE = RAND(@SEED) * 100
---            , @SEED = (RAND((@SEED+@STEP)%2147483647)*2147483647);
---        IF (@DICE < 10) -- 10% SPECIAL CHARS
---        BEGIN
---            SELECT @DICE = RAND(@SEED) * LEN(@SPECIALS)+1
---                , @SEED = (RAND((@SEED+@STEP)%2147483647)*2147483647);
---            SELECT @STRING = @STRING + SUBSTRING(@SPECIALS, @DICE, 1);
---        END
---        ELSE IF (@DICE < 10+10) -- 10% DIGITS
---        BEGIN
---            SELECT @DICE = RAND(@SEED) * LEN(@DIGIT)+1
---                , @SEED = (RAND((@SEED+@STEP)%2147483647)*2147483647);
---            SELECT @STRING = @STRING + SUBSTRING(@DIGIT, @DICE, 1);
---        END
---        ELSE -- REST 80% ALPHA
---        BEGIN
---            DECLARE @PRESEED INT = @SEED;
---            SELECT @DICE = RAND(@SEED) * LEN(@ALPHA)+1
---                , @SEED = (RAND((@SEED+@STEP)%2147483647)*2147483647);
+--    set  @seed = (rand((@seed+@step)%2147483647)*2147483647);
 
---            SELECT @STRING = @STRING + SUBSTRING(@ALPHA, @DICE, 1);
---        END
+--    select @length = @minLen + rand(@seed) * (@maxLen-@minLen)
+--        , @seed = (rand((@seed+@step)%2147483647)*2147483647);
 
---        SELECT @LENGTH = @LENGTH - 1;   
---    END
---END
---GO
---CREATE PROC [DBO].USPRANDCHARS
---    @LEN INT,
---    @MIN TINYINT = 48,
---    @RANGE TINYINT = 74,
---    @EXCLUDE VARCHAR(50) = '0:;<=>?@O[]`^\/',
---    @OUTPUT VARCHAR(50) OUTPUT
---AS 
---    DECLARE @CHAR CHAR
---    SET @OUTPUT = ''
+--    declare @dice int;
+--    select @dice = rand(@seed) * len(@first),
+--        @seed = (rand((@seed+@step)%2147483647)*2147483647);
+--    select @string = substring(@first, @dice, 1);
+
+--    while 0 < @length 
+--    begin
+--        select @dice = rand(@seed) * 100
+--            , @seed = (rand((@seed+@step)%2147483647)*2147483647);
+--        if (@dice < 10) -- 10% special chars
+--        begin
+--            select @dice = rand(@seed) * len(@specials)+1
+--                , @seed = (rand((@seed+@step)%2147483647)*2147483647);
+--            select @string = @string + substring(@specials, @dice, 1);
+--        end
+--        else if (@dice < 10+10) -- 10% digits
+--        begin
+--            select @dice = rand(@seed) * len(@digit)+1
+--                , @seed = (rand((@seed+@step)%2147483647)*2147483647);
+--            select @string = @string + substring(@digit, @dice, 1);
+--        end
+--        else -- rest 80% alpha
+--        begin
+--            declare @preseed int = @seed;
+--            select @dice = rand(@seed) * len(@alpha)+1
+--                , @seed = (rand((@seed+@step)%2147483647)*2147483647);
+
+--            select @string = @string + substring(@alpha, @dice, 1);
+--        end
+
+--        select @length = @length - 1;   
+--    end
+--end
+--go
+--create proc [dbo].uspRandChars
+--    @len int,
+--    @min tinyint = 48,
+--    @range tinyint = 74,
+--    @exclude varchar(50) = '0:;<=>?@O[]`^\/',
+--    @output varchar(50) output
+--as 
+--    declare @char char
+--    set @output = ''
  
---    WHILE @LEN > 0 BEGIN
---       SELECT @CHAR = CHAR(ROUND(RAND() * @RANGE + @MIN, 0))
---       IF CHARINDEX(@CHAR, @EXCLUDE) = 0 BEGIN
---           SET @OUTPUT += @CHAR
---           SET @LEN = @LEN - 1
---       END
---    END
+--    while @len > 0 begin
+--       select @char = char(round(rand() * @range + @min, 0))
+--       if charindex(@char, @exclude) = 0 begin
+--           set @output += @char
+--           set @len = @len - 1
+--       end
+--    end
 --;
---GO
+--go
 
 --declare @newpwd varchar(20)
 
@@ -127,12 +130,14 @@ begin
 		declare @string varchar(128);
 
 		select @seed = RAND()*1000; -- saved start seed
-		--print @seed
+
+
 
 		exec usp_generateIdentifier 
 			@seed = @seed output
 			, @string = @string output;
-		--print @string;  
+
+
 		update Person.Password
 		set PasswordHash = @string
 			where BusinessEntityID = (select ROUND(RAND()*20777, 0));
@@ -155,10 +160,7 @@ begin
 	--end
 
 	set @counter = @counter +1
-	--print @counter
 
-	-- no wait is about 1500 transaction / sec
-	waitfor delay '00:00:0.001'
 end
 
 
