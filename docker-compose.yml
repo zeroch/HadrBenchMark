@@ -1,0 +1,8 @@
+version: '3'
+
+services:
+  testrelay:
+    image: testrelay
+    build:
+      context: .
+      dockerfile: TestRelay\Dockerfile
