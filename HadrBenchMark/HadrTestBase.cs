@@ -107,7 +107,7 @@ namespace HadrBenchMark
 
                 secondary.JoinAvailabilityGroup(agName);
                 // enable autoseeding in secondary
-                secondary.GrantAvailabilityGroupCreateDatabasePrivilege(agName);
+                //secondary.GrantAvailabilityGroupCreateDatabasePrivilege(agName);
 
             }
             catch (Exception e)
@@ -129,6 +129,7 @@ namespace HadrBenchMark
             {
                 AvailabilityDatabase adb = new AvailabilityDatabase(ag, dbname);
                 adb.Create();
+                AGDBHelper.JoinAG(dbname, agName, secondary);
                 Thread.Sleep(1000);
                 // wait a bit to let adb join ag
             }
@@ -161,12 +162,17 @@ namespace HadrBenchMark
             {
                 if (!primary.Databases.Contains(dbName))
                 {
-                    AGDBHelper.RestoreDatabaseWithRename(baseDBpath, primary, "AdventureWorks2017", dbName);
+                    AGDBHelper.RestoreDatabaseToCreateDB(baseDBpath, primary, "AdventureWorks2017", dbName);
                     if (primary.Databases.Contains(dbName))
                     {
                         Database db = primary.Databases[dbName];
                         primaryDbs.Add(db);
+
+                        db.RecoveryModel = RecoveryModel.Full;
+                        db.Alter();
+
                         AGDBHelper.BackupDatabase(dbshare, primary, dbName);
+                        AGDBHelper.RestoreDatabaseWithRename(dbshare, secondary, dbName, dbName, true, true);
                     }
                 }
             }
@@ -192,20 +198,7 @@ namespace HadrBenchMark
 
         }
 
-        public void CreateDatabases(List<string> newDBNames)
-        {
-            foreach(string dbName in newDBNames)
-            {
-                if (!primary.Databases.Contains(dbName))
-                {
-                    Database db = new Database(primary, dbName);
-                    db.Create();
-                    primaryDbsNames.Add(dbName);
-                    primaryDbs.Add(db);
-                    AGDBHelper.BackupDatabase(dbshare, primary, dbName);
-                }
-            }
-        }
+
 
         public void CleanupDatabases()
         {
