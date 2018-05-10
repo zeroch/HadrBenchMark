@@ -19,9 +19,11 @@ public class Client
             // combination.
             Int32 port = 11000;
             TcpClient client = new TcpClient(server, port);
+            BinaryFormatter _bFormatter = new BinaryFormatter();
 
+            // 1-3
             List<string> dblist = new List<string>();
-            for (int i = 1; i < 10; i++)
+            for (int i = 1; i < 4; i++)
             {
                 string dbname = String.Format("DB_{0}", i);
                 dblist.Add(dbname);
@@ -30,17 +32,33 @@ public class Client
             // Translate the passed message into ASCII and store it as a Byte array.
             //Byte[] data = System.Text.Encoding.ASCII.GetBytes(message);
 
-            // Get a client stream for reading and writing.
-            //  Stream stream = client.GetStream();
+            // send a message to trigger 3 database traffic
             Message dbMessage = GetMessage(dblist);
-            NetworkStream stream = client.GetStream();
-
-            // Send the message to the connected TcpServer. 
-            //stream.Write(data, 0, data.Length);
-            BinaryFormatter _bFormatter = new BinaryFormatter();
             _bFormatter.Serialize(client.GetStream(), dbMessage);
 
-            //Console.WriteLine("Sent: {0}", message);
+            Console.ReadLine();
+            dblist.Clear();
+            
+            // send another  4-9
+            for (int i = 4; i < 10; i++)
+            {
+                string dbname = String.Format("DB_{0}", i);
+                dblist.Add(dbname);
+            }
+             dbMessage = GetMessage(dblist);
+            _bFormatter.Serialize(client.GetStream(), dbMessage);
+            // Send the message to the connected TcpServer. 
+            //stream.Write(data, 0, data.Length);
+
+
+
+
+            Console.ReadKey();
+            // close all traffic
+            Message opMessage = GetMessage("Close");
+            _bFormatter.Serialize(client.GetStream(), opMessage);
+
+            Console.ReadKey();
 
             // Receive the TcpServer.response.
 
@@ -48,7 +66,7 @@ public class Client
             //data = new Byte[256];
 
             // String to store the response ASCII representation.
-            String responseData = String.Empty;
+            //String responseData = String.Empty;
 
             // Read the first batch of the TcpServer response bytes.
             //Int32 bytes = stream.Read(data, 0, data.Length);
@@ -60,13 +78,12 @@ public class Client
             //    Console.WriteLine("Received: {0}", receivedDBList);
             //}
 
-
-            Console.WriteLine("Received: {0}", responseData);
-
-            // Close everything.
-            stream.Close();
+            // signal server to close this connection
+            opMessage = GetMessage("Close");
+            _bFormatter.Serialize(client.GetStream(), opMessage);
             client.Close();
-        }
+
+    }
         catch (ArgumentNullException e)
         {
             Console.WriteLine("ArgumentNullException: {0}", e);
@@ -92,12 +109,24 @@ public class Client
     }
     public static Message GetMessage(string msg)
     {
-        using (var memoryStream = new MemoryStream())
+        if (msg.Equals("Close"))
         {
-            (new BinaryFormatter()).Serialize(memoryStream, msg);
-            return new Message { Type = MessageType.operation, Data = memoryStream.ToArray() };
+            using (var memoryStream = new MemoryStream())
+            {
+                (new BinaryFormatter()).Serialize(memoryStream, msg);
+                return new Message { Type = MessageType.Info, Data = memoryStream.ToArray() };
+            }
+        }
+        else
+        {
+            using (var memoryStream = new MemoryStream())
+            {
+                (new BinaryFormatter()).Serialize(memoryStream, msg);
+                return new Message { Type = MessageType.operation, Data = memoryStream.ToArray() };
+            }
         }
     }
+
     public static int Main(String[] args)
     {
         Connect("zeche013117");
