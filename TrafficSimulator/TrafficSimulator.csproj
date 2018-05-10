@@ -9,4 +9,10 @@
     <ProjectReference Include="..\Message\Message.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="test_noloop.sql">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>

@@ -146,7 +146,7 @@ namespace TrafficSimulator
         {
             Process ostress = new Process();
             ostress.StartInfo.FileName = @"C:\Program Files\Microsoft Corporation\RMLUtils\ostress.exe";
-            string queryPath = DecoratePath(@"C:\Users\zeche\Documents\Visual Studio 2017\Projects\HadrBenchMark\HadrBenchMark\test_noloop.sql");
+            string queryPath = DecoratePath(@"test_noloop.sql");
             string outputBase = @"C:\temp\";
             string outputPath = DecoratePath(outputBase + dbName);
             string argument = @"-Sze-bench-01\hadrbenchmark01 -d" +dbName + ' ' +  "-r100000 -q -i" + queryPath + " -o" + outputPath;
