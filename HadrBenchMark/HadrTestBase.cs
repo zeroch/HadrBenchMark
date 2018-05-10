@@ -162,7 +162,7 @@ namespace HadrBenchMark
             {
                 if (!primary.Databases.Contains(dbName))
                 {
-                    AGDBHelper.RestoreDatabaseToCreateDB(baseDBpath, primary, "AdventureWorks2017", dbName);
+                    AGDBHelper.RestoreDatabaseWithRename(baseDBpath, primary, "Test", dbName, false);
                     if (primary.Databases.Contains(dbName))
                     {
                         Database db = primary.Databases[dbName];

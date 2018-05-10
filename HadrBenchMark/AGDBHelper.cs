@@ -210,9 +210,9 @@ namespace HadrBenchMark
             //restore on the destination
             Restore restore = new Restore();
             restore.Action =  RestoreActionType.Database;
-            restore.NoRecovery = noRecovery;
+            restore.NoRecovery = (backupType == BackupActionType.Log && noRecovery == false) ? false : true;
 
-            restore.Devices.Add(backupDeviceItem);
+                restore.Devices.Add(backupDeviceItem);
             restore.Database = newDbName;
             restore.ReplaceDatabase = false;
             DataTable logicalFilesDt = restore.ReadFileList(targetServer);
