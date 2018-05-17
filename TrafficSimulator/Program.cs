@@ -19,7 +19,6 @@ namespace TrafficSimulator
         static void Main(string[] args)
         {
             ConcurrentQueue<Process> cq = new ConcurrentQueue<Process>();
-            CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
 
             TcpListener server = null;
             try
@@ -52,6 +51,7 @@ namespace TrafficSimulator
 
                     Console.WriteLine("Connected from {0}!", hostEntry.HostName);
 
+                    CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
 
                     // Get a stream object for reading and writing
                     //NetworkStream stream = client.GetStream();
@@ -107,6 +107,7 @@ namespace TrafficSimulator
                     Console.WriteLine("All task should be canceled.");
                     // Shutdown and end connection
                     client.Close();
+                    cancellationTokenSource.Dispose();
                 }
             }
             catch (SocketException e)
@@ -149,7 +150,7 @@ namespace TrafficSimulator
             string queryPath = DecoratePath(@"test_noloop.sql");
             string outputBase = @"C:\temp\";
             string outputPath = DecoratePath(outputBase + dbName);
-            string argument = @"-Sze-bench-01\hadrbenchmark01 -d" +dbName + ' ' +  "-r100000 -q -i" + queryPath + " -o" + outputPath;
+            string argument = @"-Sze-bench-01\hadrbenchmark01 -d" +dbName + ' ' +  "-r10000000 -q -i" + queryPath + " -T146 -o" + outputPath;
             Console.WriteLine(DecoratePath(queryPath));
             Console.WriteLine(DecoratePath(outputPath));
             Console.WriteLine(argument);
