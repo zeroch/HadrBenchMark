@@ -9,4 +9,8 @@
     <PackageReference Include="Microsoft.SqlServer.SqlManagementObjects" Version="140.17235.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\Message\Message.csproj" />
+  </ItemGroup>
+
 </Project>

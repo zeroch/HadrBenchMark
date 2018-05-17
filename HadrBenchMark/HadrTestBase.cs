@@ -1,4 +1,5 @@
-﻿using Microsoft.SqlServer.Management.Smo;
+﻿using MasterSlaveController;
+using Microsoft.SqlServer.Management.Smo;
 using System;
 using System.Collections.Generic;
 using System.Text;
@@ -29,12 +30,14 @@ namespace HadrBenchMark
 
 
         private int dbCount;
-        private int increaseDBCount = 10;
 
         public List<string> primaryDbsNames;
         public List<Smo.Database> primaryDbs;
         public List<Smo.Database> secondaryDBs;
 
+
+        private MessageClient client;
+        private List<string> notConnectedDBs;
 
         public void Setup()
         {
@@ -63,7 +66,12 @@ namespace HadrBenchMark
             TestNodesHADREnabled();
             TestCreateAGWithTwoReplicasWithoutDatabase();
 
+            this.notConnectedDBs = new List<string>();
+
             //CreateBaselineDatabase();
+            client = new MessageClient(11000);
+            client.Setup();
+            Console.WriteLine("complete connection");
 
         }
 
@@ -76,10 +84,16 @@ namespace HadrBenchMark
         public void TestNodesHADREnabled()
         {
             bool primaryEnabled = primary.IsHadrEnabled;
-                Console.WriteLine("The server: {0} is {1} enabled HADR", primary.Name, primaryEnabled ? "" : "not" );
+            if (!primaryEnabled)
+            {
+                Console.WriteLine("The server: {0} is {1} enabled HADR", primary.Name, primaryEnabled ? "" : "not");
+            }
 
             bool secondaryEnabled = secondary.IsHadrEnabled;
+            if (!secondaryEnabled)
+            {
                 Console.WriteLine("The server: {0} is {1} enabled HADR", secondary.Name, secondaryEnabled ? "" : "not");
+            }
 
         }
 
@@ -99,8 +113,8 @@ namespace HadrBenchMark
 
             try
             {
-                Console.WriteLine("Creating availability group '{0}' on server '{1}', with replica on server '{2}' and no databases.",
-                                            ag.Name, primary.Name, secondary.Name);
+                Console.WriteLine("Creating availability group '{0}' on server '{1}",
+                                            ag.Name, primary.Name);
 
                 ag.Create();
                 Thread.Sleep(1000); //Sleep a tick to let AG create take effect
@@ -190,12 +204,46 @@ namespace HadrBenchMark
             {
                 string dbName = string.Format("DB_{0}", index);
                 additionDBNames.Add(dbName);
+                notConnectedDBs.Add(dbName);
             }
 
             CreateDatabaseFromBackup(additionDBNames);
             AddDatabasesIntoAG(additionDBNames);
             Console.WriteLine("Add {0} Database into AG", num);
 
+
+
+        }
+
+        // drain all databases from notConnected to traffic simulator
+        public void DrainTraffic()
+        {
+            int dbCount = notConnectedDBs.Count;
+            int slaveCount = client.GetServerCount();
+            int divide = dbCount / slaveCount;
+            int startIndex = 0;
+
+            if (divide != 0)
+            {
+                for (int i = 0; i < slaveCount; i++)
+                {
+
+                    List<string> dblist = notConnectedDBs.GetRange(startIndex, divide);
+                    startIndex += divide;
+
+                    client.SendDbMessage(dblist);
+                }
+            }
+
+            // reminder db
+            int reminder = dbCount % slaveCount;
+            if (reminder != 0)
+            {
+                List<string> dblist = notConnectedDBs.GetRange(startIndex, reminder);
+                client.SendDbMessage(dblist);
+            }
+            // all database has been drained
+            notConnectedDBs.Clear();
         }
 
 
@@ -204,6 +252,9 @@ namespace HadrBenchMark
         {
             try
             {
+                Console.WriteLine("Close all traffic.");
+                // cleanup client
+                client.Close();
 
                 Console.WriteLine("Cleanning up databases");
                 // instead of cleanup database only in the primary list, but we want to clean up every databases at nodes. 
@@ -246,9 +297,12 @@ namespace HadrBenchMark
                     }
                     secondaryDBs.Clear();
                 }
+
+
             }catch(FailedOperationException e)
             {
                 Console.WriteLine(e.InnerException);
+                client.Close();
             }
 
         }
