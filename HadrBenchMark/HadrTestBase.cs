@@ -64,7 +64,10 @@ namespace HadrBenchMark
             Console.WriteLine("Create hadrEnpoint Url: {0}", primaryEndpointUrl);
             Console.WriteLine("Create hadrEnpoint Url: {0}", secondaryEndpointUrl);
             TestNodesHADREnabled();
-            TestCreateAGWithTwoReplicasWithoutDatabase();
+            if (!AGHelper.IsAGExist(agName, primary))
+            {
+                TestCreateAGWithTwoReplicasWithoutDatabase();
+            }
 
             this.notConnectedDBs = new List<string>();
 
