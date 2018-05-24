@@ -113,6 +113,8 @@ namespace TrafficSimulator
             catch (SocketException e)
             {
                 Console.WriteLine("SocketException: {0}", e);
+                // Stop listening for new clients.
+                server.Stop();
             }
             finally
             {
