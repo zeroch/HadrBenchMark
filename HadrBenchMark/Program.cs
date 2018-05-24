@@ -73,6 +73,9 @@ namespace HadrBenchMark
                             Alive = false;
                             hadrTestBase.CleanUp();
                             break;
+                        case "quit":
+                            Alive = false;
+                            break;
                         default:
                             Console.WriteLine("No Valid parameter");
                             break;

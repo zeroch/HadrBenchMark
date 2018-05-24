@@ -309,7 +309,7 @@ namespace HadrBenchMark
             List<string> sublist;
             for (; (index +magicNumber) < dbCount; index += magicNumber)
             {
-                Console.WriteLine("Get range from {0} for {0}", index, magicNumber);
+                Console.WriteLine("Get range from {0} to {0}", index, magicNumber);
                 sublist = dblist.GetRange(index, magicNumber);
                 //client.SendDbMessage(sublist);
                 count += 1;
@@ -322,7 +322,7 @@ namespace HadrBenchMark
 
             int leftover = dbCount - index;
 
-            Console.WriteLine("Get range from {0} for {0}", index, magicNumber);
+            Console.WriteLine("Get range from {0} to {0}", index, magicNumber);
             sublist = dblist.GetRange(index, leftover);
             //client.SendDbMessage(sublist);
 
