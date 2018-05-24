@@ -161,7 +161,8 @@ namespace HadrBenchMark
             }
             foreach (string dbName in primaryDbsNames)
                 {
-                    if (!primary.Databases.Contains(dbName))
+                primary.Databases.Refresh();
+                if (!primary.Databases.Contains(dbName))
                     {
                         Database db = new Database(primary, dbName);
                         db.Create();
@@ -177,9 +178,11 @@ namespace HadrBenchMark
         {
             foreach (string dbName in newDBNames)
             {
+                primary.Databases.Refresh();
                 if (!primary.Databases.Contains(dbName))
                 {
                     AGDBHelper.RestoreDatabaseWithRename(baseDBpath, primary, "Test", dbName, false);
+                    primary.Databases.Refresh();
                     if (primary.Databases.Contains(dbName))
                     {
                         Database db = primary.Databases[dbName];
@@ -197,6 +200,8 @@ namespace HadrBenchMark
 
         public void ScanDBsFromEnvironment()
         {
+            // problem is here
+            primary.Databases.Refresh();
             foreach (Database db in primary.Databases)
             {
                 if (!db.IsSystemObject)
