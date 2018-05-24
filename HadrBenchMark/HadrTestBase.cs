@@ -218,39 +218,6 @@ namespace HadrBenchMark
 
         }
 
-        // drain all databases from notConnected to traffic simulator
-        public void DrainTraffic()
-        {
-            int dbCount = notConnectedDBs.Count;
-            int slaveCount = client.GetServerCount();
-            int divide = dbCount / slaveCount;
-            int startIndex = 0;
-
-            if (divide != 0)
-            {
-                for (int i = 0; i < slaveCount; i++)
-                {
-
-                    List<string> dblist = notConnectedDBs.GetRange(startIndex, divide);
-                    startIndex += divide;
-
-                    client.SendDbMessage(dblist);
-                }
-            }
-
-            // reminder db
-            int reminder = dbCount % slaveCount;
-            if (reminder != 0)
-            {
-                List<string> dblist = notConnectedDBs.GetRange(startIndex, reminder);
-                client.SendDbMessage(dblist);
-            }
-            // all database has been drained
-            notConnectedDBs.Clear();
-        }
-
-
-
         public void CleanupDatabases()
         {
             try
@@ -309,6 +276,91 @@ namespace HadrBenchMark
             }
 
         }
+        // drain all databases from notConnected to traffic simulator
+        public void BulkTraffic_v2(List<string> dblist, bool CleanupList)
+        {
+            int dbCount = dblist.Count;
+            int slaveCount = client.GetServerCount();
 
+            int count = 0;
+            int index = 0;
+            int magicNumber = 10;
+            List<string> sublist;
+            for (; (index +magicNumber) < dbCount; index += magicNumber)
+            {
+                Console.WriteLine("Get range from {0} for {0}", index, magicNumber);
+                sublist = dblist.GetRange(index, magicNumber);
+                //client.SendDbMessage(sublist);
+                count += 1;
+                if (count >3)
+                {
+                    count = 0;
+                    Thread.Sleep(new TimeSpan(0, 2, 0));
+                }
+            }
+
+            int leftover = dbCount - index;
+
+            Console.WriteLine("Get range from {0} for {0}", index, magicNumber);
+            sublist = dblist.GetRange(index, leftover);
+            //client.SendDbMessage(sublist);
+
+            if (CleanupList)
+            {
+                dblist.Clear();
+            }
+        }
+
+        // drain all databases from notConnected to traffic simulator
+        public void BulkTraffic(List<string> dblist, bool CleanupList)
+        {
+            int dbCount = dblist.Count;
+            int slaveCount = client.GetServerCount();
+
+            int divide = dbCount / slaveCount;
+            int startIndex = 0;
+
+            if (divide != 0)
+            {
+                for (int i = 0; i < slaveCount; i++)
+                {
+
+                    List<string> sublist = dblist.GetRange(startIndex, divide);
+                    startIndex += divide;
+
+                    client.SendDbMessage(sublist);
+                }
+            }
+
+            // reminder db
+            int reminder = dbCount % slaveCount;
+            if (reminder != 0)
+            {
+                List<string> sublist = dblist.GetRange(startIndex, reminder);
+                client.SendDbMessage(sublist);
+            }
+            if (CleanupList)
+            {
+                dblist.Clear();
+            }
+        }
+
+        public void StartTraffic()
+        {
+            BulkTraffic_v2(notConnectedDBs, true);
+        }
+
+        public void RefreshTraffic()
+        {
+            client.Setup();
+            BulkTraffic_v2(primaryDbsNames, false);
+        }
+
+        public void DrainTraffic()
+        {
+            Console.WriteLine("Close all traffic.");
+            // cleanup client
+            client.Close();
+        }
     }
 }
