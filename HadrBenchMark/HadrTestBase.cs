@@ -195,6 +195,22 @@ namespace HadrBenchMark
             }
         }
 
+        public void ScanDBsFromEnvironment()
+        {
+            foreach (Database db in primary.Databases)
+            {
+                if (!db.IsSystemObject)
+
+                {
+                    primaryDbs.Add(db);
+                    primaryDbsNames.Add(db.Name);
+                    dbCount += 1;
+                }
+            }
+            Console.WriteLine("Scan lab environment and found {0} databases", dbCount);
+
+        }
+
         // add x databases into primary replica
         // keep database name in primaryDbNames in record
 

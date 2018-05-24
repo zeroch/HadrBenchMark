@@ -15,6 +15,7 @@ namespace HadrBenchMark
             HadrTestBase hadrTestBase = new HadrTestBase();
             hadrTestBase.Setup();
 
+            hadrTestBase.ScanDBsFromEnvironment();
 
             Run(hadrTestBase);
 
