@@ -58,6 +58,7 @@ namespace HadrBenchMark
                 client.Dispose();
             }
             _clientsDictionary.Clear();
+            serverList.Clear();
         }
 
 
