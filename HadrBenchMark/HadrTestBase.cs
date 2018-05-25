@@ -36,9 +36,16 @@ namespace HadrBenchMark
         public List<Smo.Database> secondaryDBs;
 
 
+
         private MessageClient client;
         private List<string> notConnectedDBs;
 
+        private bool stopBackup;
+
+        public void StopBackup()
+        {
+            stopBackup = true;
+        }
         public void Setup()
         {
             agName = "HadrBenchTest";
@@ -75,6 +82,8 @@ namespace HadrBenchMark
             client = new MessageClient(11000);
             client.Setup();
             Console.WriteLine("complete connection");
+            stopBackup = false;
+
 
         }
 
@@ -82,6 +91,7 @@ namespace HadrBenchMark
         {
             AGHelper.DropAG(agName, primary);
             CleanupDatabases();
+            StopBackup();
         }
 
         public void TestNodesHADREnabled()
@@ -196,6 +206,20 @@ namespace HadrBenchMark
                     }
                 }
             }
+        }
+
+        public void BackupLog()
+        {
+            while(!stopBackup)
+            {
+                Console.WriteLine("Running log backup for {0} databases at background", primaryDbs.Count);
+                foreach (Database db in primaryDbs)
+                {
+                    AGDBHelper.LogBackup(dbshare, primary, db.Name);
+                }
+                Thread.Sleep(new TimeSpan(0, 2, 0));
+            }
+
         }
 
         public void ScanDBsFromEnvironment()

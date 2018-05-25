@@ -132,6 +132,38 @@ namespace HadrBenchMark
                 }
             }
 
+        public static void LogBackup(string fileShare, SMO.Server sourceServer, string dbName)
+        {
+            string backupFilePath;
+            string fileName = string.Format(backupFileNameTemplate, dbName, BackupActionType.Log.ToString());
+            backupFilePath = Path.Combine(fileShare, fileName);
+
+            //delete the backup file
+            File.Delete(backupFilePath);
+            try
+            {
+                BackupDeviceItem backupDeviceItem = new BackupDeviceItem(backupFilePath, DeviceType.File);
+                //backup the database from the source server
+                Backup backup = new Backup();
+
+                backup.Action = BackupActionType.Log;
+                backup.Database = dbName;
+                backup.Devices.Add(backupDeviceItem);
+                backup.Incremental = true;
+                backup.LogTruncation = BackupTruncateLogType.Truncate;
+
+                backup.SqlBackup(sourceServer);
+
+            }
+            catch (Exception ex)
+            {
+                //if an exception happens, delete the file
+                File.Delete(backupFilePath);
+
+                throw ex;
+            }
+        }
+
 
             /// <summary>
             /// Restore Database and Log on target server from backup files with NoRecovery = true. Keep the backup files in their original locations.

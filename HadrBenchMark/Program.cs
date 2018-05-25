@@ -4,7 +4,7 @@ using Microsoft.SqlServer.Management.Smo;
 using System.Collections.Generic;
 using System.Data;
 using HadrBenchMark;
-
+using System.Threading;
 
 namespace HadrBenchMark
 {
@@ -16,6 +16,11 @@ namespace HadrBenchMark
             hadrTestBase.Setup();
 
             hadrTestBase.ScanDBsFromEnvironment();
+
+            Console.WriteLine(" spining a thread to backup log");
+            // spining a thread that used to do log backup for each database currently we have. 
+            var t = new Thread(new ThreadStart(hadrTestBase.BackupLog));
+            t.Start();
 
             Run(hadrTestBase);
 
@@ -73,8 +78,12 @@ namespace HadrBenchMark
                             Alive = false;
                             hadrTestBase.CleanUp();
                             break;
+                        case "Logbackup":
+                            hadrTestBase.BackupLog();
+                            break;
                         case "quit":
                             Alive = false;
+                            hadrTestBase.StopBackup();
                             break;
                         default:
                             Console.WriteLine("No Valid parameter");
