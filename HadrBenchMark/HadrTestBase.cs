@@ -2,9 +2,12 @@
 using Microsoft.SqlServer.Management.Smo;
 using System;
 using System.Collections.Generic;
+using System.Data;
 using System.Text;
 using System.Threading;
 using Smo = Microsoft.SqlServer.Management.Smo;
+using System.Data.SqlClient;
+
 
 namespace HadrBenchMark
 {
@@ -17,14 +20,12 @@ namespace HadrBenchMark
         // connect to Primary
         private Smo.Server primary;
         // use only one secondary right now, refactor to list if need more replica
-        private Smo.Server secondary;
+        private List<Smo.Server> replicas;
+        private List<Smo.Server> secondaries;
 
-        private string primaryEndpointUrl;
-        private string secondaryEndpointUrl;
-
+        private List<string> replicaEndpointUrls;
 
         private string primaryServerName;
-        private string secondaryServerName;
         private string agName;
 
 
@@ -49,8 +50,7 @@ namespace HadrBenchMark
         public void Setup()
         {
             agName = "HadrBenchTest";
-            primaryServerName = @"ze-bench-01\hadrBenchMark01";
-            secondaryServerName = @"ze-bench-02\hadrBenchMark01";
+
 
             baseDBpath = @"\\zechen-d1\dbshare\";
             dbshare = @"\\zechen-d1\dbshare\bench\";
@@ -61,16 +61,35 @@ namespace HadrBenchMark
             primaryDbs = new List<Database>();
 
             dbCount = 0;
-            // get connection to primary and secondary server
-            primary = new Smo.Server(primaryServerName);
-            secondary = new Smo.Server(secondaryServerName);
+            // create three replicas
 
-            this.primaryEndpointUrl = ARHelper.GetHadrEndpointUrl(primary);
-            this.secondaryEndpointUrl = ARHelper.GetHadrEndpointUrl(secondary);
+            replicas = new List<Server>();
+            secondaries = new List<Server>();
+            replicaEndpointUrls = new List<string>();
+            primaryServerName = string.Empty;
 
-            Console.WriteLine("Create hadrEnpoint Url: {0}", primaryEndpointUrl);
-            Console.WriteLine("Create hadrEnpoint Url: {0}", secondaryEndpointUrl);
-            TestNodesHADREnabled();
+            Smo.Server srv;
+            srv = new Smo.Server(@"ze-bench-01\hadrBenchMark01");
+            replicas.Add(srv);
+            // primary is important
+            primaryServerName = @"ze-bench-01\hadrBenchMark01";
+            primary = srv;
+            srv = new Smo.Server(@"ze-bench-02\hadrBenchMark01");
+            replicas.Add(srv);
+            secondaries.Add(srv);
+            srv = new Smo.Server(@"ze-bench-03\hadrBenchMark01");
+            replicas.Add(srv);
+            secondaries.Add(srv);
+
+            string replicaEndpointUrl = string.Empty;
+            foreach(Smo.Server server in replicas)
+            {
+                replicaEndpointUrl = ARHelper.GetHadrEndpointUrl(server);
+                replicaEndpointUrls.Add(replicaEndpointUrl);
+            }
+
+
+
             if (!AGHelper.IsAGExist(agName, primary))
             {
                 TestCreateAGWithTwoReplicasWithoutDatabase();
@@ -113,16 +132,18 @@ namespace HadrBenchMark
         // When we called this primary and secondary should being create
         public void TestCreateAGWithTwoReplicasWithoutDatabase()
         {
-
+            Smo.Server primary = replicas[0];
             AvailabilityGroup ag = new AvailabilityGroup(primary, agName);
 
-            AvailabilityReplica ar1 = ARHelper.BuildAR(ag, primary.Name, primaryEndpointUrl);
-            AvailabilityReplica ar2 = ARHelper.BuildAR(ag, secondary.Name, secondaryEndpointUrl);
+            List<Smo.Server> secondaries = replicas.GetRange(1, replicas.Count - 1);
 
+            for(int i = 0; i < replicas.Count; ++i)
+            {
 
+                AvailabilityReplica ar = ARHelper.BuildAR(ag, replicas[i].Name, replicaEndpointUrls[i]);
+                ag.AvailabilityReplicas.Add(ar);
+            }
 
-            ag.AvailabilityReplicas.Add(ar1);
-            ag.AvailabilityReplicas.Add(ar2);
 
             try
             {
@@ -132,7 +153,12 @@ namespace HadrBenchMark
                 ag.Create();
                 Thread.Sleep(1000); //Sleep a tick to let AG create take effect
 
-                secondary.JoinAvailabilityGroup(agName);
+                foreach(Smo.Server srv in secondaries)
+                {
+                    srv.JoinAvailabilityGroup(agName);
+
+                }
+                CreateAGListener();
                 // enable autoseeding in secondary
                 //secondary.GrantAvailabilityGroupCreateDatabasePrivilege(agName);
 
@@ -156,8 +182,11 @@ namespace HadrBenchMark
             {
                 AvailabilityDatabase adb = new AvailabilityDatabase(ag, dbname);
                 adb.Create();
-                AGDBHelper.JoinAG(dbname, agName, secondary);
-                Thread.Sleep(1000);
+                foreach(Smo.Server srv in secondaries)
+                {
+                    AGDBHelper.JoinAG(dbname, agName, srv);
+                    Thread.Sleep(1000);
+                }
                 // wait a bit to let adb join ag
             }
         }
@@ -202,7 +231,10 @@ namespace HadrBenchMark
                         db.Alter();
 
                         AGDBHelper.BackupDatabase(dbshare, primary, dbName);
-                        AGDBHelper.RestoreDatabaseWithRename(dbshare, secondary, dbName, dbName, true, true);
+                        foreach (Smo.Server srv in secondaries)
+                        {
+                            AGDBHelper.RestoreDatabaseWithRename(dbshare, srv, dbName, dbName, false, true);
+                        }
                     }
                 }
             }
