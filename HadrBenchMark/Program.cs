@@ -17,10 +17,6 @@ namespace HadrBenchMark
 
             hadrTestBase.ScanDBsFromEnvironment();
 
-            Console.WriteLine(" spining a thread to backup log");
-            // spining a thread that used to do log backup for each database currently we have. 
-            var t = new Thread(new ThreadStart(hadrTestBase.BackupLog));
-            t.Start();
 
             Run(hadrTestBase);
 
@@ -66,10 +62,10 @@ namespace HadrBenchMark
                             }
                             break;
                         case "StartTraffic":
-                            hadrTestBase.StartTraffic();
+                            hadrTestBase.StartPartialTraffic();
                             break;
                         case "RefreshTraffic":
-                            hadrTestBase.RefreshTraffic();
+                            hadrTestBase.StartFullTraffic();
                             break;
                         case "DrainTraffic":
                             hadrTestBase.DrainTraffic();
@@ -78,12 +74,12 @@ namespace HadrBenchMark
                             Alive = false;
                             hadrTestBase.CleanUp();
                             break;
-                        case "Logbackup":
-                            hadrTestBase.BackupLog();
-                            break;
                         case "quit":
                             Alive = false;
-                            hadrTestBase.StopBackup();
+                            break;
+                        case "Check":
+                            var t = new Thread(new ThreadStart(hadrTestBase.ExecuteQuery));
+                            t.Start();
                             break;
                         default:
                             Console.WriteLine("No Valid parameter");

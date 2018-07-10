@@ -20,12 +20,17 @@ namespace HadrBenchMark
         // connect to Primary
         private Smo.Server primary;
         // use only one secondary right now, refactor to list if need more replica
+        private Smo.Server reportSrv;
         private List<Smo.Server> replicas;
         private List<Smo.Server> secondaries;
-
+        
         private List<string> replicaEndpointUrls;
 
         private string primaryServerName;
+        private string reportServerName;
+        private string reportDBName;
+        private string reportConnecionString;
+
         private string agName;
 
 
@@ -61,6 +66,7 @@ namespace HadrBenchMark
             primaryDbs = new List<Database>();
 
             dbCacheLock = new ReaderWriterLockSlim();
+
             dbCount = 0;
             // create three replicas
 
@@ -75,6 +81,15 @@ namespace HadrBenchMark
             // primary is important
             primaryServerName = @"ze-bench-01\hadrBenchMark01";
             primary = srv;
+            //report server always point to 01
+            reportSrv = srv;
+            reportServerName = primaryServerName;
+            reportDBName = @"FailoverResult";
+            string username = "reportA";
+            string password = "report@123";
+            reportConnecionString = string.Format("server={0}; Initial Catalog={1};uid={2}; pwd={3} ", primaryServerName, reportDBName, username, password);
+
+
             srv = new Smo.Server(@"ze-bench-02\hadrBenchMark01");
             replicas.Add(srv);
             secondaries.Add(srv);
@@ -143,7 +158,7 @@ namespace HadrBenchMark
                 foreach(Smo.Server srv in secondaries)
                 {
                     srv.JoinAvailabilityGroup(agName);
-
+                    
                 }
                 CreateAGListener();
                 // enable autoseeding in secondary
@@ -174,6 +189,7 @@ namespace HadrBenchMark
                     AGDBHelper.JoinAG(dbname, agName, srv);
                     Thread.Sleep(1000);
                 }
+
                 // wait a bit to let adb join ag
             }
         }
@@ -208,6 +224,7 @@ namespace HadrBenchMark
 
         public void BackupLog()
         {
+
             while(!stopBackup)
             {
                 dbCacheLock.EnterReadLock();
@@ -308,7 +325,7 @@ namespace HadrBenchMark
                         }
                     }
                 }
-
+                
                 foreach( Database db in cleanList)
                 {
                     if (db.State != SqlSmoState.Dropped)
@@ -327,9 +344,17 @@ namespace HadrBenchMark
 
         }
         // drain all databases from notConnected to traffic simulator
-        public void BulkTraffic_v2(List<string> dblist, bool CleanupList)
+        public void BulkTraffic_v2(List<string> dblist, bool CleanupList, bool fullTraffic = true)
         {
-            int dbCount = dblist.Count;
+            int dbCount = 0;
+            if (fullTraffic)
+            {
+                dbCount = dblist.Count;
+            }else
+            {
+                dbCount = dblist.Count / 10;
+            }
+            
             int slaveCount = client.GetServerCount();
 
             int count = 0;
@@ -340,12 +365,12 @@ namespace HadrBenchMark
             {
                 Console.WriteLine("Get range from {0} to {0}", index, magicNumber);
                 sublist = dblist.GetRange(index, magicNumber);
-                //client.SendDbMessage(sublist);
+                client.SendDbMessage(sublist);
                 count += 1;
                 if (count >3)
                 {
                     count = 0;
-                    Thread.Sleep(new TimeSpan(0, 2, 0));
+                    Thread.Sleep(new TimeSpan(0, 0, 30));
                 }
             }
 
@@ -353,7 +378,7 @@ namespace HadrBenchMark
 
             Console.WriteLine("Get range from {0} to {0}", index, magicNumber);
             sublist = dblist.GetRange(index, leftover);
-            //client.SendDbMessage(sublist);
+            client.SendDbMessage(sublist);
 
             if (CleanupList)
             {
@@ -361,49 +386,27 @@ namespace HadrBenchMark
             }
         }
 
-        // drain all databases from notConnected to traffic simulator
-        public void BulkTraffic(List<string> dblist, bool CleanupList)
+        public void StartPartialTraffic()
         {
-            int dbCount = dblist.Count;
-            int slaveCount = client.GetServerCount();
-
-            int divide = dbCount / slaveCount;
-            int startIndex = 0;
-
-            if (divide != 0)
-            {
-                for (int i = 0; i < slaveCount; i++)
-                {
-
-                    List<string> sublist = dblist.GetRange(startIndex, divide);
-                    startIndex += divide;
-
-                    client.SendDbMessage(sublist);
-                }
-            }
-
-            // reminder db
-            int reminder = dbCount % slaveCount;
-            if (reminder != 0)
-            {
-                List<string> sublist = dblist.GetRange(startIndex, reminder);
-                client.SendDbMessage(sublist);
-            }
-            if (CleanupList)
-            {
-                dblist.Clear();
-            }
-        }
-
-        public void StartTraffic()
-        {
-            BulkTraffic_v2(notConnectedDBs, true);
-        }
-
-        public void RefreshTraffic()
-        {
+            //CreateBaselineDatabase();
+            client = new MessageClient(11000);
             client.Setup();
-            BulkTraffic_v2(primaryDbsNames, false);
+            Console.WriteLine("complete connection");
+
+            BulkTraffic_v2(primaryDbsNames, false, false);
+
+
+        }
+
+        public void StartFullTraffic()
+        {
+            //CreateBaselineDatabase();
+            client = new MessageClient(11000);
+            client.Setup();
+            Console.WriteLine("complete connection");
+
+            BulkTraffic_v2(primaryDbsNames, false, true);
+
         }
 
         public void DrainTraffic()
@@ -412,5 +415,96 @@ namespace HadrBenchMark
             // cleanup client
             client.Close();
         }
+
+        // helper that runs query
+        public void ExecuteQuery()
+        {
+            // I want to test 19 failovers here 
+            int failoverCount = replicas.FindIndex(t => t.Name == primary.Name);
+            // find current primary's index from replica list
+            while(failoverCount < 21)
+            {
+                // pick new primary
+                int primaryIndex = (failoverCount+1) % replicas.Count;
+                Smo.Server newPrimary = replicas[primaryIndex];
+
+                //Console.WriteLine("Checking AG Synced");
+                while (!IsAGSynchronized())
+                {
+                    Thread.Sleep(10);
+                }
+                DateTime beforeFailover = DateTime.Now;
+
+                AGHelper.FailoverToServer(newPrimary, agName, AGHelper.ActionType.ManualFailover);
+                primary = newPrimary;
+                Console.WriteLine("AG: {0} failover to {1}. ", agName, primary.Name);
+                Console.WriteLine("Current AG is {0} synchronized", IsAGSynchronized() ? " " : "not");
+                while (!IsAGSynchronized())
+                {
+                    Thread.Sleep(10);
+                }
+                DateTime afterFailover = DateTime.Now;
+                TimeSpan failoverInterval = afterFailover - beforeFailover;
+                Console.WriteLine("Failover takes {0}", failoverInterval.TotalSeconds);
+                InsertFailoverReport(beforeFailover, afterFailover, primary.Databases.Count);
+                failoverCount += 1;
+                Thread.Sleep(new TimeSpan(0, 2, 0));
+
+
+            }
+            Console.WriteLine("Thread Stop");
+        }
+
+        public void InsertFailoverReport(DateTime before, DateTime after, int dbCount)
+        {
+            using (SqlConnection con = new SqlConnection(reportConnecionString))
+            {
+                con.Open();
+                using (SqlCommand query = new SqlCommand("insert into failover_result(DBCount,failoverStartTime,failoverEndTime) VALUES (@dbcount, @before, @after)", con))
+                {
+                    query.Parameters.Add("@dbcount", SqlDbType.Int);
+                    query.Parameters["@dbcount"].Value = dbCount;
+                    query.Parameters.AddWithValue("@before", before);
+                    query.Parameters.AddWithValue("@after", after);
+                    query.ExecuteNonQuery();
+                }
+            }
+
+        }
+
+
+        public bool IsAGSynchronized()
+        {
+            string query = @"select COUNT(*) as 'UnHealthy Db'
+FROM sys.dm_hadr_database_replica_states drs, sys.availability_groups ag, sys.databases dbs
+WHERE drs.group_id = ag.group_id AND dbs.database_id = drs.database_id AND synchronization_health_desc <> 'HEALTHY'";
+
+            DataSet ds = primary.ConnectionContext.ExecuteWithResults(query);
+            DataRow dr = ds.Tables[0].Rows[0];
+
+            //Console.WriteLine("UnHealthy Db: {0}", dr["UnHealthy Db"].ToString());
+            return (int)dr["UnHealthy Db"] == 0;
+
+        }
+
+        public void CreateAGListener()
+        {
+            string query = @"   USE [master]
+                                GO
+                                ALTER AVAILABILITY GROUP [HadrBenchTest]
+                                ADD LISTENER N'BenchTestLis' (
+                                WITH DHCP
+                                 ON (N'10.193.16.0', N'255.255.252.0'
+                                )
+                                , PORT=62444);
+                                GO
+                                ";
+
+            primary.ConnectionContext.ExecuteNonQuery(query);
+
+        }
+
+
+
     }
 }
