@@ -19,6 +19,7 @@ namespace HadrBenchMark
         private List<string> serverList;
         private int nextServerIndex;
 
+        public bool Connected { set; get; }
         public MessageClient(int port)
         {
             this._port = port;
@@ -26,6 +27,7 @@ namespace HadrBenchMark
             this._bFormatter = new BinaryFormatter();
             this.serverList = new List<string>();
             this.nextServerIndex = 0;
+            this.Connected = false;
         }
 
         public void Setup()
@@ -43,6 +45,7 @@ namespace HadrBenchMark
                     Console.WriteLine("Connect to {0} failed", server);
                 }
             }
+            Connected = true;
         }
 
         public void Close()
@@ -59,6 +62,7 @@ namespace HadrBenchMark
             }
             _clientsDictionary.Clear();
             serverList.Clear();
+            Connected = false;
         }
 
 
