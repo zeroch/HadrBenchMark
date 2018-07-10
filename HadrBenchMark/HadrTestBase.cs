@@ -97,10 +97,7 @@ namespace HadrBenchMark
 
             this.notConnectedDBs = new List<string>();
 
-            //CreateBaselineDatabase();
-            client = new MessageClient(11000);
-            client.Setup();
-            Console.WriteLine("complete connection");
+
             stopBackup = false;
 
 
@@ -113,21 +110,7 @@ namespace HadrBenchMark
             StopBackup();
         }
 
-        public void TestNodesHADREnabled()
-        {
-            bool primaryEnabled = primary.IsHadrEnabled;
-            if (!primaryEnabled)
-            {
-                Console.WriteLine("The server: {0} is {1} enabled HADR", primary.Name, primaryEnabled ? "" : "not");
-            }
 
-            bool secondaryEnabled = secondary.IsHadrEnabled;
-            if (!secondaryEnabled)
-            {
-                Console.WriteLine("The server: {0} is {1} enabled HADR", secondary.Name, secondaryEnabled ? "" : "not");
-            }
-
-        }
 
         // When we called this primary and secondary should being create
         public void TestCreateAGWithTwoReplicasWithoutDatabase()
@@ -191,27 +174,6 @@ namespace HadrBenchMark
             }
         }
 
-        public void CreateBaselineDatabase()
-        {
-            dbCount = 10;
-            for (int i = 1; i <= dbCount; i++)
-            {
-                primaryDbsNames.Add(string.Format("DB_{0}", i));
-            }
-            foreach (string dbName in primaryDbsNames)
-                {
-                primary.Databases.Refresh();
-                if (!primary.Databases.Contains(dbName))
-                    {
-                        Database db = new Database(primary, dbName);
-                        db.Create();
-                        primaryDbs.Add(db);
-
-                        AGDBHelper.BackupDatabase(dbshare, primary, dbName);
-                    }
-                }
-            AddDatabasesIntoAG(primaryDbsNames);
-        }
 
         public void CreateDatabaseFromBackup(List<string> newDBNames)
         {
