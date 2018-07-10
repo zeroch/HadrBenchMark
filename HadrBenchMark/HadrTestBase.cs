@@ -36,7 +36,7 @@ namespace HadrBenchMark
         public List<Smo.Database> primaryDbs;
         public List<Smo.Database> secondaryDBs;
 
-
+        ReaderWriterLockSlim dbCacheLock;
 
         private MessageClient client;
         private List<string> notConnectedDBs;
@@ -60,6 +60,7 @@ namespace HadrBenchMark
             primaryDbsNames = new List<string>();
             primaryDbs = new List<Database>();
 
+            dbCacheLock = new ReaderWriterLockSlim();
             dbCount = 0;
             // create three replicas
 
@@ -105,7 +106,10 @@ namespace HadrBenchMark
 
         public void CleanUp()
         {
-            AGHelper.DropAG(agName, primary);
+            if (AGHelper.IsAGExist(agName, primary))
+            {
+                AGHelper.DropAG(agName, primary);
+            }
             CleanupDatabases();
             StopBackup();
         }
@@ -206,11 +210,19 @@ namespace HadrBenchMark
         {
             while(!stopBackup)
             {
-                Console.WriteLine("Running log backup for {0} databases at background", primaryDbs.Count);
-                foreach (Database db in primaryDbs)
+                dbCacheLock.EnterReadLock();
+                try
                 {
-                    AGDBHelper.LogBackup(dbshare, primary, db.Name);
+                    Console.WriteLine("Running log backup for {0} databases at background", primaryDbs.Count);
+                    foreach (Database db in primaryDbs)
+                    {
+                        AGDBHelper.LogBackup(dbshare, primary, db.Name);
+                    }
+                }finally
+                {
+                    dbCacheLock.ExitReadLock();
                 }
+
                 Thread.Sleep(new TimeSpan(0, 2, 0));
             }
 
@@ -218,19 +230,31 @@ namespace HadrBenchMark
 
         public void ScanDBsFromEnvironment()
         {
-            // problem is here
-            primary.Databases.Refresh();
-            foreach (Database db in primary.Databases)
+            dbCacheLock.EnterWriteLock();
+            try
             {
-                if (!db.IsSystemObject)
-
+                // problem is here
+                primary.Databases.Refresh();
+                foreach (Database db in primary.Databases)
                 {
-                    primaryDbs.Add(db);
-                    primaryDbsNames.Add(db.Name);
-                    dbCount += 1;
+                    if (!db.IsSystemObject)
+
+                    {
+                        if (db.Name != "FailoverResult")
+                        {
+                            primaryDbs.Add(db);
+                            primaryDbsNames.Add(db.Name);
+                            dbCount += 1;
+                        }
+
+                    }
                 }
+                Console.WriteLine("Scan lab environment and found {0} databases", dbCount);
+            }finally
+            {
+                dbCacheLock.ExitWriteLock();
             }
-            Console.WriteLine("Scan lab environment and found {0} databases", dbCount);
+
 
         }
 
@@ -239,21 +263,26 @@ namespace HadrBenchMark
 
         public void AddDatabases(int num)
         {
-            int index = dbCount + 1;
-            dbCount += num;
-            List<string> additionDBNames = new List<string>();
-            for (; index <= dbCount; index++)
+            dbCacheLock.EnterWriteLock();
+            try
             {
-                string dbName = string.Format("DB_{0}", index);
-                additionDBNames.Add(dbName);
-                notConnectedDBs.Add(dbName);
+                int index = dbCount + 1;
+                dbCount += num;
+                List<string> additionDBNames = new List<string>();
+                for (; index <= dbCount; index++)
+                {
+                    string dbName = string.Format("DB_{0}", index);
+                    additionDBNames.Add(dbName);
+                    notConnectedDBs.Add(dbName);
+                }
+
+                CreateDatabaseFromBackup(additionDBNames);
+                AddDatabasesIntoAG(additionDBNames);
+                Console.WriteLine("Add {0} Database into AG", num);
+            }finally
+            {
+                dbCacheLock.ExitWriteLock();
             }
-
-            CreateDatabaseFromBackup(additionDBNames);
-            AddDatabasesIntoAG(additionDBNames);
-            Console.WriteLine("Add {0} Database into AG", num);
-
-
 
         }
 
@@ -261,57 +290,39 @@ namespace HadrBenchMark
         {
             try
             {
-                Console.WriteLine("Close all traffic.");
+                //Console.WriteLine("Close all traffic.");
                 // cleanup client
-                client.Close();
+                //client.Close();
 
                 Console.WriteLine("Cleanning up databases");
-                // instead of cleanup database only in the primary list, but we want to clean up every databases at nodes. 
-                List<Database> primarydbList = new List<Database>();
-
-                foreach (Database db in primary.Databases)
+                // srv.Databases is a collection that doesn't allow to drop in run-time
+                // so, we make a copy of clean list
+                List<Database> cleanList = new List<Database>();
+                foreach(Server srv in replicas)
                 {
-                    if (!db.IsSystemObject)
-                        primarydbList.Add(db);
-
-                }
-                if (primaryDbs != null)
-                {
-                    foreach (Database db in primarydbList)
+                    foreach(Database db in srv.Databases)
                     {
-                        if (db.State != SqlSmoState.Dropped)
+                        if ( db.Name.Contains("DB_"))
                         {
-                            // assume all databases should dropped from ag
-                            db.Drop();
+                            cleanList.Add(db);
                         }
                     }
-                    primaryDbs.Clear();
                 }
-                secondaryDBs = new List<Database>();
-                foreach (Database db in secondary.Databases)
-                {
-                    if (!db.IsSystemObject)
-                        secondaryDBs.Add(db);
 
-                }
-                if (secondaryDBs != null)
+                foreach( Database db in cleanList)
                 {
-                    foreach (Database db in secondaryDBs)
+                    if (db.State != SqlSmoState.Dropped)
                     {
-                        if (db.State != SqlSmoState.Dropped)
-                        {
-                            // assume all databases should dropped from ag
-                            db.Drop();
-                        }
+                        // assume all databases should dropped from ag
+                        db.Drop();
                     }
-                    secondaryDBs.Clear();
                 }
 
 
             }catch(FailedOperationException e)
             {
                 Console.WriteLine(e.InnerException);
-                client.Close();
+
             }
 
         }
