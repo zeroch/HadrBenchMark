@@ -16,7 +16,8 @@ namespace HadrBenchMark
         public class AGDBHelper
         {
             private static string backupFileNameTemplate = "{0}_{1}.bak";
-
+        private static string testEnvDatabasePath = @"E:\DATA";
+        private static string testEnvBackupPath = @"E:\Backup";
             #region Public Methods
 
             /// <summary>
@@ -160,7 +161,7 @@ namespace HadrBenchMark
                 //if an exception happens, delete the file
                 File.Delete(backupFilePath);
 
-                throw ex;
+                Console.WriteLine("transilent backup failed");
             }
         }
 
@@ -230,7 +231,7 @@ namespace HadrBenchMark
         public static void RestoreDatabaseWithRename(string fileShare, SMO.Server targetServer, string dbName, string newDbName, bool deleteBackupFiles, bool noRecovery = false)
         {
             string backupFilePath;
-            string dataDirectory = targetServer.InstallDataDirectory;
+            string dataDirectory = testEnvDatabasePath;
 
             foreach (BackupActionType backupType in new List<BackupActionType> { BackupActionType.Database, BackupActionType.Log })
             {
