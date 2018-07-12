@@ -53,56 +53,66 @@ namespace TrafficSimulator
 
                     CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
 
-                    // Get a stream object for reading and writing
-                    //NetworkStream stream = client.GetStream();
-                    while (true)
-                    {
-                        BinaryFormatter binaryFormatter = new BinaryFormatter();
-                        Message msg = (Message)binaryFormatter.Deserialize(client.GetStream());
-
-                        if (msg.Type == MessageType.DB)
+                        // Get a stream object for reading and writing
+                        //NetworkStream stream = client.GetStream();
+                        while (true)
                         {
-                            List<string> dblist = (List<string>)DecerializeMessage(msg);
-                            foreach (string db in dblist)
+                        try
+                        {
+                            BinaryFormatter binaryFormatter = new BinaryFormatter();
+                            Message msg = (Message)binaryFormatter.Deserialize(client.GetStream());
+
+                            if (msg.Type == MessageType.DB)
                             {
-                                Console.WriteLine(db);
+                                List<string> dblist = (List<string>)DecerializeMessage(msg);
+                                foreach (string db in dblist)
+                                {
+                                    Console.WriteLine(db);
 
+                                }
+                                NewConnectionsToDBs(cq, dblist, cancellationTokenSource);
                             }
-                            NewConnectionsToDBs(cq, dblist, cancellationTokenSource);
+                            else if (msg.Type == MessageType.operation)
+                            {
+                                string command = (string)DecerializeMessage(msg);
+                                Console.WriteLine("Receive command: {0}", command);
+                            }
+                            else if (msg.Type == MessageType.Info)
+                            {
+                                break;
+                            }
                         }
-                        else if (msg.Type == MessageType.operation)
+                        catch (System.IO.IOException e)
                         {
-                            string command = (string)DecerializeMessage(msg);
-                            Console.WriteLine("Receive command: {0}", command);
+                            Console.WriteLine("Another side close the socket forcely");
+                            client.Close();
                         }
-                        else if (msg.Type == MessageType.Info)
-                        {
-                            break;
-                        }
-
                     }
 
 
 
-                    //int i;
 
-                    //// Loop to receive all the data sent by the client.
-                    //while ((i = stream.Read(bytes, 0, bytes.Length)) != 0)
-                    //{
-                    //    // Translate data bytes to a ASCII string.
-                    //    data = System.Text.Encoding.ASCII.GetString(bytes, 0, i);
-                    //    Console.WriteLine("Received: {0}", data);
 
-                    //    // Process the data sent by the client.
-                    //    data = data.ToUpper();
 
-                    //    byte[] msg = System.Text.Encoding.ASCII.GetBytes(data);
+            //int i;
 
-                    //    // Send back a response.
-                    //    stream.Write(msg, 0, msg.Length);
-                    //    Console.WriteLine("Sent: {0}", data);
-                    //}
-                    cancellationTokenSource.Cancel();
+            //// Loop to receive all the data sent by the client.
+            //while ((i = stream.Read(bytes, 0, bytes.Length)) != 0)
+            //{
+            //    // Translate data bytes to a ASCII string.
+            //    data = System.Text.Encoding.ASCII.GetString(bytes, 0, i);
+            //    Console.WriteLine("Received: {0}", data);
+
+            //    // Process the data sent by the client.
+            //    data = data.ToUpper();
+
+            //    byte[] msg = System.Text.Encoding.ASCII.GetBytes(data);
+
+            //    // Send back a response.
+            //    stream.Write(msg, 0, msg.Length);
+            //    Console.WriteLine("Sent: {0}", data);
+            //}
+            cancellationTokenSource.Cancel();
                     KillOStressTask(cq);
                     Console.WriteLine("All task should be canceled.");
                     // Shutdown and end connection
@@ -113,7 +123,10 @@ namespace TrafficSimulator
             catch (SocketException e)
             {
                 Console.WriteLine("SocketException: {0}", e);
+                // Stop listening for new clients.
+                server.Stop();
             }
+
             finally
             {
                 // Stop listening for new clients.
@@ -150,7 +163,7 @@ namespace TrafficSimulator
             string queryPath = DecoratePath(@"test_noloop.sql");
             string outputBase = @"C:\temp\";
             string outputPath = DecoratePath(outputBase + dbName);
-            string argument = @"-Sze-bench-01\hadrbenchmark01 -d" +dbName + ' ' +  "-r10000000 -q -i" + queryPath + " -T146 -o" + outputPath;
+            string argument = @"-SBenchTestLis\hadrbenchmark01 -d" +dbName + ' ' +  "-r10000000 -q -i" + queryPath + " -T146 -o" + outputPath;
             Console.WriteLine(DecoratePath(queryPath));
             Console.WriteLine(DecoratePath(outputPath));
             Console.WriteLine(argument);

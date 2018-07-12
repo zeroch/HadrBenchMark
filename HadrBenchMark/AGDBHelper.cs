@@ -16,7 +16,8 @@ namespace HadrBenchMark
         public class AGDBHelper
         {
             private static string backupFileNameTemplate = "{0}_{1}.bak";
-
+        private static string testEnvDatabasePath = @"E:\DATA";
+        private static string testEnvBackupPath = @"E:\Backup";
             #region Public Methods
 
             /// <summary>
@@ -132,6 +133,38 @@ namespace HadrBenchMark
                 }
             }
 
+        public static void LogBackup(string fileShare, SMO.Server sourceServer, string dbName)
+        {
+            string backupFilePath;
+            string fileName = string.Format(backupFileNameTemplate, dbName, BackupActionType.Log.ToString());
+            backupFilePath = Path.Combine(fileShare, fileName);
+
+            //delete the backup file
+            File.Delete(backupFilePath);
+            try
+            {
+                BackupDeviceItem backupDeviceItem = new BackupDeviceItem(backupFilePath, DeviceType.File);
+                //backup the database from the source server
+                Backup backup = new Backup();
+
+                backup.Action = BackupActionType.Log;
+                backup.Database = dbName;
+                backup.Devices.Add(backupDeviceItem);
+                backup.Incremental = true;
+                backup.LogTruncation = BackupTruncateLogType.Truncate;
+
+                backup.SqlBackup(sourceServer);
+
+            }
+            catch (Exception ex)
+            {
+                //if an exception happens, delete the file
+                File.Delete(backupFilePath);
+
+                Console.WriteLine("transilent backup failed");
+            }
+        }
+
 
             /// <summary>
             /// Restore Database and Log on target server from backup files with NoRecovery = true. Keep the backup files in their original locations.
@@ -198,7 +231,7 @@ namespace HadrBenchMark
         public static void RestoreDatabaseWithRename(string fileShare, SMO.Server targetServer, string dbName, string newDbName, bool deleteBackupFiles, bool noRecovery = false)
         {
             string backupFilePath;
-            string dataDirectory = targetServer.InstallDataDirectory;
+            string dataDirectory = testEnvDatabasePath;
 
             foreach (BackupActionType backupType in new List<BackupActionType> { BackupActionType.Database, BackupActionType.Log })
             {
