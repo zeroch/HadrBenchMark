@@ -2,6 +2,8 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using HadrBenchMark;
 using System.Data;
 using System;
+using System.Threading;
+
 namespace TestHadrBenchMark
 {
     [TestClass]
@@ -41,7 +43,10 @@ namespace TestHadrBenchMark
         [TestMethod]
         public void TestInsertFailoverReport()
         {
-            m_hadr.InsertFailoverReport(DateTime.Now, DateTime.Now, 200);
+            DateTime before = DateTime.Now;
+            Thread.Sleep(5012);
+            DateTime after = DateTime.Now;
+            m_hadr.InsertFailoverReport(before, after, 200, 32, 100, "ze is awesome");
         }
         [TestMethod]
         public void TestPartialTraffic()

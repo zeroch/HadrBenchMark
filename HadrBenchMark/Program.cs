@@ -78,7 +78,22 @@ namespace HadrBenchMark
                             Alive = false;
                             break;
                         case "Check":
-                            var t = new Thread(new ThreadStart(hadrTestBase.ExecuteQuery));
+                            string str_cpuCount = param[1];
+                            string str_workloadCount = param[2];
+                            int cpuCount = 0;
+                            int workloadCount = 0;
+                            if (!Int32.TryParse(str_cpuCount, out cpuCount))
+                            {
+                                Console.WriteLine("invalid number.");
+                                break;
+                            }
+                            if (!Int32.TryParse(str_workloadCount, out workloadCount))
+                            {
+                                Console.WriteLine("invalid number.");
+                                break;
+                            }
+                            
+                            var t = new Thread(() => hadrTestBase.ExecuteQuery(cpuCount, workloadCount));
                             t.Start();
                             break;
                         default:

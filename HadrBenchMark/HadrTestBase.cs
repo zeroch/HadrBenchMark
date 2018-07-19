@@ -417,9 +417,29 @@ namespace HadrBenchMark
         }
 
         // helper that runs query
-        public void ExecuteQuery()
+        public void ExecuteQuery(int cpuCount, int workloadCount)
         {
-            // I want to test 19 failovers here 
+            bool hasTraffic = false;
+            try
+            {
+                if (workloadCount == 10)
+                {
+                    StartPartialTraffic();
+                    hasTraffic = true;
+                }
+                else if (workloadCount == 100)
+                {
+                    StartFullTraffic();
+                    hasTraffic = true;
+                }
+            }catch(Exception e)
+            {
+                Console.WriteLine("Exception catched during simulate traffic. Please check your traffic simulator client");
+                Console.WriteLine(e);
+                return;
+            }
+
+
             int failoverCount = replicas.FindIndex(t => t.Name == primary.Name);
             // find current primary's index from replica list
             while(failoverCount < 21)
@@ -428,17 +448,16 @@ namespace HadrBenchMark
                 int primaryIndex = (failoverCount+1) % replicas.Count;
                 Smo.Server newPrimary = replicas[primaryIndex];
 
-                //Console.WriteLine("Checking AG Synced");
+                Console.WriteLine("Checking AG Synced");
                 while (!IsAGSynchronized())
                 {
                     Thread.Sleep(10);
                 }
                 DateTime beforeFailover = DateTime.Now;
-
+                string primaryName = primary.Name;
                 AGHelper.FailoverToServer(newPrimary, agName, AGHelper.ActionType.ManualFailover);
                 primary = newPrimary;
                 Console.WriteLine("AG: {0} failover to {1}. ", agName, primary.Name);
-                Console.WriteLine("Current AG is {0} synchronized", IsAGSynchronized() ? " " : "not");
                 while (!IsAGSynchronized())
                 {
                     Thread.Sleep(10);
@@ -446,26 +465,38 @@ namespace HadrBenchMark
                 DateTime afterFailover = DateTime.Now;
                 TimeSpan failoverInterval = afterFailover - beforeFailover;
                 Console.WriteLine("Failover takes {0}", failoverInterval.TotalSeconds);
-                InsertFailoverReport(beforeFailover, afterFailover, primary.Databases.Count);
+                InsertFailoverReport(beforeFailover, afterFailover, dbCount, cpuCount, workloadCount, primaryName);
                 failoverCount += 1;
                 Thread.Sleep(new TimeSpan(0, 2, 0));
 
 
             }
             Console.WriteLine("Thread Stop");
+            if (hasTraffic)
+            {
+                DrainTraffic();
+            }
         }
 
-        public void InsertFailoverReport(DateTime before, DateTime after, int dbCount)
+        public void InsertFailoverReport(DateTime before, DateTime after, int dbCount, int cpuCount, int workload, string primary)
         {
             using (SqlConnection con = new SqlConnection(reportConnecionString))
             {
                 con.Open();
-                using (SqlCommand query = new SqlCommand("insert into failover_result(DBCount,failoverStartTime,failoverEndTime) VALUES (@dbcount, @before, @after)", con))
+                using (SqlCommand query = new SqlCommand("insert into failover_result " +
+                    "(DBCount,failoverStartTime,failoverEndTime, ProcessCount, ActiveDBCount, workloadCount, CurrentPrimary, FailoverInterval) " +
+                    "VALUES (@dbcount, @before, @after, @cpu, @activeDB, @workload, @primary, @interval)", con))
                 {
                     query.Parameters.Add("@dbcount", SqlDbType.Int);
                     query.Parameters["@dbcount"].Value = dbCount;
                     query.Parameters.AddWithValue("@before", before);
                     query.Parameters.AddWithValue("@after", after);
+                    query.Parameters.AddWithValue("@cpu", cpuCount);
+                    query.Parameters.AddWithValue("@activeDB", (dbCount/100)*workload);
+                    query.Parameters.AddWithValue("@workload", workload);
+                    string primaryInstance = primary.Substring(0, primary.IndexOf('\\'));
+                    query.Parameters.AddWithValue("@primary", primaryInstance);
+                    query.Parameters.AddWithValue("@interval", (int)(after-before).TotalSeconds);
                     query.ExecuteNonQuery();
                 }
             }
